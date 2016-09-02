@@ -49,7 +49,7 @@
 #include <byteswap.h>
 
 #include "bt_vendor_lib.h"
-#include "hci.h"
+// #include "hci.h"
 
 /******************************************************************************
 **  Constants &  Macros
@@ -277,8 +277,6 @@ struct rtk_epatch{
     uint16_t number_of_patch;
     struct rtk_epatch_entry entry[0];
 } __attribute__ ((packed));
-
-extern tHCI_IF *p_hci_if;
 
 patch_info* get_patch_entry(uint16_t prod_id)
 {
@@ -722,7 +720,7 @@ struct rtk_epatch_entry *rtk_get_patch_entry(bt_hw_cfg_cb_t *cfg_cb)
 
     patch->number_of_patch = le16_to_cpu(patch->number_of_patch);
 
-    ALOGI("rtk_get_patch_entry: fw_ver 0x%08x, patch_num %d", 
+    ALOGI("rtk_get_patch_entry: fw_ver 0x%08x, patch_num %d",
                 le32_to_cpu(patch->fw_version), patch->number_of_patch);
 
     for (i = 0; i < patch->number_of_patch; i++)
@@ -821,7 +819,7 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
     {
         cfg_cb->total_len = entry->patch_length + cfg_cb->config_len;
     }
-    else 
+    else
     {
         cfg_cb->dl_fw_flag = 0;
         goto free_buf;
@@ -844,7 +842,7 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
         ALOGI("fw svn_version = %05d", entry->svn_version);
         ALOGI("BTCOEX20%06d-%04x",
         ((entry->coex_version >> 16) & 0x7ff) + ((entry->coex_version >> 27) * 10000),
-        (entry->coex_version & 0xffff)); 
+        (entry->coex_version & 0xffff));
     }
 
     if (cfg_cb->config_len)
@@ -1036,7 +1034,7 @@ CFG_START:
                     break;
                 }
 
-                if ((hw_cfg_cb.total_len > 0) && hw_cfg_cb.dl_fw_flag) 
+                if ((hw_cfg_cb.total_len > 0) && hw_cfg_cb.dl_fw_flag)
                 {
                     hw_cfg_cb.patch_frag_cnt = hw_cfg_cb.total_len / PATCH_DATA_FIELD_MAX_SIZE;
                     hw_cfg_cb.patch_frag_tail = hw_cfg_cb.total_len % PATCH_DATA_FIELD_MAX_SIZE;
