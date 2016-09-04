@@ -168,10 +168,11 @@ static int init_rfkill()
         if (sz >= 9 && memcmp(buf, "bluetooth", 9) == 0)
         {
             rfkill_id = id;
+
             break;
         }
     }
-
+	
     asprintf(&rfkill_state_path, "/sys/class/rfkill/rfkill%d/state", rfkill_id);
     return 0;
 }

@@ -167,12 +167,13 @@ void userial_ioctl_init_bt_wake(int fd)
 ** Returns         None
 **
 *******************************************************************************/
-void userial_vendor_init(void)
+void userial_vendor_init(char *bt_device_node)
 {
     vnd_userial.fd = -1;
     snprintf(vnd_userial.port_name, VND_PORT_NAME_MAXLEN, "%s", \
-            BLUETOOTH_UART_DEVICE_PORT);
+            bt_device_node);
 }
+
 
 /*******************************************************************************
 **

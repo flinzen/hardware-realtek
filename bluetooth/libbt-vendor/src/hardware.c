@@ -39,6 +39,7 @@
 #include <ctype.h>
 #include <cutils/properties.h>
 #include <stdlib.h>
+#include <bt_types.h>
 #include "bt_hci_bdroid.h"
 #include "bt_vendor_rtk.h"
 #include "userial.h"
@@ -49,17 +50,14 @@
 #include <byteswap.h>
 
 #include "bt_vendor_lib.h"
-// #include "hci.h"
+
 
 /******************************************************************************
 **  Constants &  Macros
 ******************************************************************************/
-#ifdef RTL_8723BS_BT_USED
-#define RTK_VERSION "3.7"
-#endif
-#ifdef RTL_8723BS_VQ0_BT_USED
-#define RTK_VERSION "3.7-VQ0"
-#endif
+
+#define RTK_VERSION "3.8 with Android6.0"
+
 #define RTK_8703A_SUPPORT   0  /* 1:support 8703a, 0:not support */
 
 #ifndef BTHW_DBG
@@ -70,6 +68,10 @@
 #define BTHWDBG(param, ...) {ALOGD(param, ## __VA_ARGS__);}
 #else
 #define BTHWDBG(param, ...) {}
+#endif
+
+#ifndef USE_CONTROLLER_BDADDR
+#define USE_CONTROLLER_BDADDR TRUE
 #endif
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -112,13 +114,26 @@ struct rtk_bt_vendor_config{
 #define HCI_VSC_UPDATE_BAUDRATE                 0xFC17
 #define HCI_VSC_DOWNLOAD_FW_PATCH               0xFC20
 #define HCI_VSC_READ_ROM_VERSION                0xFC6D
+#define HCI_VSC_READ_CHIP_TYPE                0xFC61
 
 #define ROM_LMP_NONE                0x0000
 #define ROM_LMP_8723a               0x1200
 #define ROM_LMP_8723b               0x8723
-#define ROM_LMP_8703a               0x8703
+#define ROM_LMP_8703a               0x87b3
 #define ROM_LMP_8821a               0X8821
 #define ROM_LMP_8761a               0X8761
+#define ROM_LMP_8763a               0x8763
+#define ROM_LMP_8703b               0x8703//???????
+#define ROM_LMP_8723c               0x87c3//???????
+#define ROM_LMP_8723cs_xx        0x8704//0x8703+1
+#define ROM_LMP_8723cs_cg        0x8705//0x8703+2
+#define ROM_LMP_8723cs_vf         0x8706//0x8703+3
+#define ROM_LMP_8822b               0x8822
+
+#define CHIP_8723CS_CG 3
+#define CHIP_8723CS_VF 4
+#define CHIP_RTL8723CS_XX 5
+#define CHIP_8703BS   7
 
 #define HCI_EVT_CMD_CMPL_STATUS_RET_BYTE        5
 #define HCI_EVT_CMD_CMPL_LOCAL_NAME_STRING      6
@@ -127,8 +142,10 @@ struct rtk_bt_vendor_config{
 #define HCI_EVT_CMD_CMPL_HCI_VERSION            6
 #define HCI_EVT_CMD_CMPL_LPM_VERSION            12
 #define HCI_EVT_CMD_CMPL_ROM_VERSION            6
+#define HCI_EVT_CMD_CMPL_CHIP_TYPE            6
 #define UPDATE_BAUDRATE_CMD_PARAM_SIZE          6
 #define HCI_CMD_PREAMBLE_SIZE                   3
+#define HCI_CMD_READ_CHIP_TYPE_SIZE         5
 #define HCD_REC_PAYLOAD_LEN_BYTE                2
 #define BD_ADDR_LEN                             6
 #define LOCAL_NAME_BUFFER_LEN                   32
@@ -139,11 +156,6 @@ struct rtk_bt_vendor_config{
 #define H5_CONF_REQ_SIZE 3
 #define H5_CONF_RESP_SIZE 2
 
-#define STREAM_TO_UINT16(u16, p) {u16 = ((uint16_t)(*(p)) + (((uint16_t)(*((p) + 1))) << 8)); (p) += 2;}
-#define UINT16_TO_STREAM(p, u16) {*(p)++ = (uint8_t)(u16); *(p)++ = (uint8_t)((u16) >> 8);}
-#define UINT32_TO_STREAM(p, u32) {*(p)++ = (uint8_t)(u32); *(p)++ = (uint8_t)((u32) >> 8); *(p)++ = (uint8_t)((u32) >> 16); *(p)++ = (uint8_t)((u32) >> 24);}
-#define STREAM_TO_UINT32(u32, p) {u32 = (((uint32_t)(*(p))) + ((((uint32_t)(*((p) + 1)))) << 8) + ((((uint32_t)(*((p) + 2)))) << 16) + ((((uint32_t)(*((p) + 3)))) << 24)); (p) += 4;}
-
 /******************************************************************************
 **  Local type definitions
 ******************************************************************************/
@@ -153,6 +165,7 @@ enum {
     HW_CFG_H5_INIT = 1,
     HW_CFG_READ_LMP_VER,
     HW_CFG_READ_ROM_VER,
+    HW_CFG_READ_CHIP_TYPE,
     HW_CFG_START,
     HW_CFG_SET_UART_BAUD_HOST,//change FW baudrate
     HW_CFG_SET_UART_BAUD_CONTROLLER,//change Host baudrate
@@ -168,6 +181,7 @@ typedef struct
     uint8_t     state;          /* Hardware configuration state */
     uint8_t     eversion;
     uint8_t     hci_version;
+    uint8_t     chip_type;
     uint8_t     dl_fw_flag;
     int         fw_len;          /* FW patch file len */
     int         config_len;      /* Config patch file len */
@@ -234,11 +248,16 @@ const uint8_t EXTENSION_SECTION_SIGNATURE[4]={0x51,0x04,0xFD,0x77};
 
 uint16_t project_id[]=
 {
-    ROM_LMP_8723a,
-    ROM_LMP_8723b,
-    ROM_LMP_8821a,
-    ROM_LMP_8761a,
-    ROM_LMP_NONE
+	ROM_LMP_8723a,
+	ROM_LMP_8723b,
+	ROM_LMP_8821a,
+	ROM_LMP_8761a,
+    ROM_LMP_8703a,
+    ROM_LMP_8763a,
+    ROM_LMP_8703b,
+    ROM_LMP_8723c,
+    ROM_LMP_8822b,
+	ROM_LMP_NONE
 };
 
 typedef struct {
@@ -248,16 +267,21 @@ typedef struct {
 } patch_info;
 
 static patch_info patch_table[] = {
-    { ROM_LMP_8723a, "rtl8723a_fw", "rtl8723a_config" },    //Rtl8723AS
-#ifdef RTL_8723BS_BT_USED
-    { ROM_LMP_8723b, "rtl8723b_fw", "rtl8723b_config"},     //Rtl8723BS
+    { ROM_LMP_8723a, "rtl8723as_fw", "rtl8723as_config" },    //Rtl8723AS
+ #ifdef RTL_8723BS_BT_USED
+    { ROM_LMP_8723b, "rtl8723bs_fw", "rtl8723bs_config"},     //Rtl8723BS
 #endif
 #ifdef RTL_8723BS_VQ0_BT_USED
-    { ROM_LMP_8723b, "rtl8723b_fw", "rtl8723b_VQ0_config"}, //Rtl8723BS_VQ0
+    { ROM_LMP_8723b, "rtl8723bs_VQ0_fw", "rtl8723bs_VQ0_config"}, //Rtl8723BS_VQ0
 #endif
-    { ROM_LMP_8703a, "rtl8703a_fw", "rtl8703a_config"},     //Rtl8703aS
-    { ROM_LMP_8821a, "rtl8821a_fw", "rtl8821a_config"},     //Rtl8821AS
-    { ROM_LMP_8761a, "rtl8761a_fw", "rtl8761a_config"},     //Rtl8761AW
+    { ROM_LMP_8703a, "rtl8703as_fw", "rtl8703as_config"},     //Rtl8703aS
+    { ROM_LMP_8821a, "rtl8821as_fw", "rtl8821as_config"},     //Rtl8821AS
+    { ROM_LMP_8761a, "rtl8761as_fw", "rtl8761as_config"},     //Rtl8761AW
+    { ROM_LMP_8822b, "rtl8822bs_fw", "rtl8822bs_config"},     //Rtl8822BS
+    { ROM_LMP_8703b, "rtl8703bs_fw", "rtl8703bs_config"},     //Rtl8703BS
+    { ROM_LMP_8723cs_xx, "rtl8723cs_xx_fw", "rtl8723cs_xx_config"},     //rtl8723cs_xx
+    { ROM_LMP_8723cs_cg, "rtl8723cs_cg_fw", "rtl8723cs_cg_config"},     //rtl8723cs_cg
+    { ROM_LMP_8723cs_vf,  "rtl8723cs_vf_fw", "rtl8723cs_vf_config"},     //rtl8723cs_vf
     /* add entries here*/
 
     { ROM_LMP_NONE,  "rtl_none_fw", "rtl_none_config"}
@@ -277,6 +301,8 @@ struct rtk_epatch{
     uint16_t number_of_patch;
     struct rtk_epatch_entry entry[0];
 } __attribute__ ((packed));
+
+
 
 patch_info* get_patch_entry(uint16_t prod_id)
 {
@@ -523,8 +549,15 @@ uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint
         switch(le16_to_cpu(entry->offset))
         {
 #if (USE_CONTROLLER_BDADDR == FALSE)
-            case 0x3c:
+
+            case 0x44:
+			case 0x3c:
             {
+				if(hw_cfg_cb.lmp_version != ROM_LMP_8703b  ){
+					if(le16_to_cpu(entry->offset) == 0x44){
+						break;
+					}
+				}
                 config_has_bdaddr = 1;
                 int j=0;
                 for (j=0; j<entry->entry_len; j++)
@@ -559,9 +592,17 @@ uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint
     if(!config_has_bdaddr)
     {
         ALOGI("rtk_parse_config_file: DO NOT USE_CONTROLLER_BDADDR, config has no bdaddr");
+		ALOGI("rtk_parse_config_file : CONFIG_ADDR is: %02X:%02X:%02X:%02X:%02X:%02X",
+        bt_addr[0], bt_addr[1],
+        bt_addr[2], bt_addr[3],
+        bt_addr[4], bt_addr[5]);
         *config_buf = realloc(*config_buf, *filelen+9);
         ((struct rtk_bt_vendor_config*)*config_buf)->data_len += 9;
-        *((char*)*config_buf + *filelen) = 0x3c;
+		if(hw_cfg_cb.lmp_version == ROM_LMP_8703b){
+        	*((char*)*config_buf + *filelen) = 0x44;
+		}else {
+			*((char*)*config_buf + *filelen) = 0x3c;
+		}
         *((char*)*config_buf + *filelen + 1) = 0x00;
         *((char*)*config_buf + *filelen + 2) = 0x06;
         *((char*)*config_buf + *filelen + 3) = bt_addr[5];
@@ -805,7 +846,7 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
 #if RTK_8703A_SUPPORT
     if((cfg_cb->hci_version != 4)&&(cfg_cb->lmp_version != project_id[proj_id]))
 #else
-    if(cfg_cb->lmp_version != project_id[proj_id])
+    if(cfg_cb->lmp_version != ROM_LMP_8703b && cfg_cb->lmp_version != project_id[proj_id])
 #endif
     {
         ALOGE("lmp_version is %x, project_id is %x, does not match!!!",
@@ -901,7 +942,7 @@ static int hci_download_patch_h4(HC_BT_HDR *p_buf, int index, uint8_t *data, int
 void hw_config_cback(void *p_mem)
 {
     HC_BT_HDR   *p_evt_buf = NULL;
-    uint8_t     *p = NULL;
+    uint8_t     *p = NULL, *pp=NULL;
     uint8_t     status = 0;
     uint16_t    opcode = 0;
     HC_BT_HDR   *p_buf = NULL;
@@ -989,6 +1030,49 @@ void hw_config_cback(void *p_mem)
                     is_proceeding = FALSE;
                     break;
                 }
+
+                if (hw_cfg_cb.lmp_version == ROM_LMP_8703b)
+                {
+                    hw_cfg_cb.state = HW_CFG_READ_CHIP_TYPE;
+                     p = (uint8_t *) (p_buf + 1);
+                    UINT16_TO_STREAM(p, HCI_VSC_READ_CHIP_TYPE);
+                    *p++ = 5;
+                    UINT8_TO_STREAM(p, 0x00);
+                    UINT32_TO_STREAM(p, 0xB000A094);
+                    p_buf->len = HCI_CMD_PREAMBLE_SIZE + HCI_CMD_READ_CHIP_TYPE_SIZE;
+
+                    pp = (uint8_t *) (p_buf + 1);
+                    for (i = 0; i < p_buf->len; i++)
+                    ALOGI("get chip type command data[%d]= %x", i, *(pp+i));
+
+                    is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_VSC_READ_CHIP_TYPE, p_buf, hw_config_cback);
+                    break;
+                }
+                else
+                {
+                    hw_cfg_cb.state = HW_CFG_START;
+                    goto CFG_START;
+                }
+            }
+            case HW_CFG_READ_CHIP_TYPE:
+            {
+                 ALOGI("get chip status = %d", status);
+                 ALOGI("get chip length = %d", p_evt_buf->len);
+                 p = (uint8_t *)(p_evt_buf + 1) ;
+                 for (i = 0; i < p_evt_buf->len; i++)
+                    ALOGI("get chip event data[%d]= %x", i, *(p+i));
+                if(status == 0)
+                {
+                    hw_cfg_cb.chip_type = ((*((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_ROM_VERSION))&0x0F);
+                    ALOGE("get chip hw_cfg_cb.lmp_version = %d", hw_cfg_cb.lmp_version);
+                    ALOGE("get chip hw_cfg_cb.hci_version = %d", hw_cfg_cb.hci_version);
+                    ALOGE("get chip hw_cfg_cb.chip_type = %d", hw_cfg_cb.chip_type);
+                }
+                else
+                {
+                    is_proceeding = FALSE;
+                    break;
+                }
                 hw_cfg_cb.state = HW_CFG_START;
             }
 CFG_START:
@@ -1003,6 +1087,32 @@ CFG_START:
                 }else
 #endif
                     prtk_patch_file_info = get_patch_entry(hw_cfg_cb.lmp_version);
+
+                if (hw_cfg_cb.lmp_version == ROM_LMP_8703b)
+                {
+                    if (hw_cfg_cb.chip_type == CHIP_8703BS)
+                    {
+                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8703b);
+                    }
+                    else if (hw_cfg_cb.chip_type == CHIP_RTL8723CS_XX)
+                    {
+                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8723cs_xx);
+                    }
+                    else if (hw_cfg_cb.chip_type == CHIP_8723CS_CG)
+                    {
+                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8723cs_cg);
+                    }
+                    else if (hw_cfg_cb.chip_type == CHIP_8723CS_VF)
+                    {
+                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8723cs_vf);
+                    }
+                    else
+                    {
+                        ALOGE("get chip type error");
+                        is_proceeding = FALSE;
+                        break;
+                    }
+                }
 
                 if((prtk_patch_file_info == NULL) || (prtk_patch_file_info->prod_id == 0))
                 {

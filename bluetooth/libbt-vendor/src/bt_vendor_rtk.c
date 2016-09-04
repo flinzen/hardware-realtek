@@ -27,10 +27,10 @@
 #undef NDEBUG
 #define LOG_TAG "bt_vendor"
 #include <utils/Log.h>
+#include <bt_types.h>
 #include "bt_vendor_rtk.h"
 #include "upio.h"
 #include "userial_vendor.h"
-
 #ifndef BTVND_DBG
 #define BTVND_DBG TRUE
 #endif
@@ -83,7 +83,7 @@ static const tUSERIAL_CFG userial_init_cfg =
 **
 *****************************************************************************/
 
-static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr)
+static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr,char *bt_device_node)
 {
     ALOGI("init");
 
@@ -93,7 +93,7 @@ static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr)
         return -1;
     }
 
-    userial_vendor_init();
+    userial_vendor_init(bt_device_node);
     upio_init();
 
     /* store reference to user callbacks */
@@ -104,6 +104,7 @@ static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr)
 
     return 0;
 }
+
 
 
 /** Requested operations */
