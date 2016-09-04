@@ -13,6 +13,4 @@ PRODUCT_COPY_FILES += \
                 $(LOCAL_PATH)/rtl8723cs_vf_fw:system/etc/firmware/rtl8723cs_vf_fw \
                 $(LOCAL_PATH)/rtl8723cs_vf_config:system/etc/firmware/rtl8723cs_vf_config \
 				$(LOCAL_PATH)/rtl8703b_fw:system/etc/firmware/rtl8703bs_fw \
-                $(LOCAL_PATH)/rtl8703b_config:system/etc/firmware/rtl8703bs_config \
-                $(TOP_DIR)device/softwinner/$(basename $(TARGET_DEVICE))/bluetooth/rtkbt.conf:system/etc/bluetooth/rtkbt.conf \
-
+                $(LOCAL_PATH)/rtl8703b_config:system/etc/firmware/rtl8703bs_config
