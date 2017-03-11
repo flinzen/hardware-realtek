@@ -10,12 +10,8 @@
  *
  */
 
-#include <sys/cdefs.h>
+#include "includes.h"
 #include <sys/types.h>
-#include <sys/ioctl.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include <fcntl.h>
 #include <net/if.h>
 
@@ -27,7 +23,6 @@
 #ifdef ANDROID
 #include "android_drv.h"
 #endif
-
 
 typedef struct android_wifi_priv_cmd {
 #ifdef BCMDHD_64_BIT_IPC

@@ -27,10 +27,10 @@
 #undef NDEBUG
 #define LOG_TAG "bt_vendor"
 #include <utils/Log.h>
-#include <bt_types.h>
 #include "bt_vendor_rtk.h"
 #include "upio.h"
 #include "userial_vendor.h"
+
 #ifndef BTVND_DBG
 #define BTVND_DBG TRUE
 #endif
@@ -95,6 +95,8 @@ static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr,c
 
     userial_vendor_init(bt_device_node);
     upio_init();
+    ALOGE("bt_wake_up_host_mode_set(1)");
+    bt_wake_up_host_mode_set(1);
 
     /* store reference to user callbacks */
     bt_vendor_cbacks = (bt_vendor_callbacks_t *) p_cb;
@@ -210,6 +212,8 @@ static void cleanup( void )
     BTVNDDBG("cleanup");
 
     upio_cleanup();
+    ALOGE("bt_wake_up_host_mode_set(0)");
+    bt_wake_up_host_mode_set(0);
 
     bt_vendor_cbacks = NULL;
 }

@@ -15,7 +15,6 @@ LOCAL_SRC_FILES := \
 LOCAL_C_INCLUDES += \
         $(LOCAL_PATH)/include \
         $(BDROID_DIR)/hci/include \
-        $(BDROID_DIR)/stack/include \
         $(BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR)/uart
 
 LOCAL_SHARED_LIBRARIES := \
