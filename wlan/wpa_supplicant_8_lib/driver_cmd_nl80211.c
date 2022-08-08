@@ -18,18 +18,27 @@
 #include "common.h"
 #include "linux_ioctl.h"
 #include "driver_nl80211.h"
+#ifdef PURE_LINUX
+#include "../common/rtw_version.h"
+#else
+#include "rtw_version.h"
+#endif
+#ifndef __unused
+#if __GNUC_PREREQ(2, 95) || defined(__INTEL_COMPILER)
+#define __unused __attribute__((__unused__))
+#else
+#define __unused
+#endif
+#endif
 #include "wpa_supplicant_i.h"
 #include "config.h"
 #ifdef ANDROID
 #include "android_drv.h"
 #endif
 
+
 typedef struct android_wifi_priv_cmd {
-#ifdef BCMDHD_64_BIT_IPC
-	u64 bufaddr;
-#else
 	char *bufaddr;
-#endif
 	int used_len;
 	int total_len;
 } android_wifi_priv_cmd;
@@ -98,6 +107,11 @@ int wpa_driver_nl80211_driver_cmd(void *priv, char *cmd, char *buf,
 	} else if (os_strcasecmp(cmd, "START") == 0) {
 		linux_set_iface_flags(drv->global->ioctl_sock, bss->ifname, 1);
 		wpa_msg(drv->ctx, MSG_INFO, WPA_EVENT_DRIVER_STATE "STARTED");
+	} else if (os_strcasecmp(cmd, "lib_version") == 0) {
+		wpa_msg(drv->ctx, MSG_INFO, RTW_VERSION);
+	} else if (os_strcasecmp(cmd, "P2P_DISABLE") == 0) {
+		os_memcpy(buf, "P2P_DISABLE", 12);
+		wpa_printf(MSG_DEBUG, "P2P_DISABLE");
 	} else if (os_strcasecmp(cmd, "MACADDR") == 0) {
 		u8 macaddr[ETH_ALEN] = {};
 
@@ -110,15 +124,10 @@ int wpa_driver_nl80211_driver_cmd(void *priv, char *cmd, char *buf,
 		memset(&ifr, 0, sizeof(ifr));
 		memset(&priv_cmd, 0, sizeof(priv_cmd));
 		os_strlcpy(ifr.ifr_name, bss->ifname, IFNAMSIZ);
-
-#ifdef BCMDHD_64_BIT_IPC
-		priv_cmd.bufaddr = (u64)(uintptr_t)buf;
-#else
 		priv_cmd.bufaddr = buf;
-#endif
 		priv_cmd.used_len = buf_len;
 		priv_cmd.total_len = buf_len;
-		ifr.ifr_data = &priv_cmd;
+		ifr.ifr_data = (void *)&priv_cmd;
 
 		if ((ret = ioctl(drv->global->ioctl_sock, SIOCDEVPRIVATE + 1, &ifr)) < 0) {
 			wpa_printf(MSG_ERROR, "%s: failed to issue private command: %s", __func__, cmd);

@@ -29,9 +29,10 @@
 
 #ifndef BT_VENDOR_RTK_H
 #define BT_VENDOR_RTK_H
-#include <string.h>
+
 #include "bt_vendor_lib.h"
 #include "vnd_buildcfg.h"
+#include <string.h>
 
 /******************************************************************************
 **  Constants & Macros
@@ -77,11 +78,7 @@
  *  firmware patchram (.hcd) file.
  */
 #ifndef USE_CONTROLLER_BDADDR
-#ifdef RTL_8723BS_BT_USED
 #define USE_CONTROLLER_BDADDR   TRUE //FALSE
-#else
-#define USE_CONTROLLER_BDADDR   FALSE //FALSE
-#endif
 #endif
 
 /* sleep mode
